@@ -1,0 +1,125 @@
+{
+"update_url": "https://clients2.google.com/service/update2/crx",
+
+    "icons": {
+        "16": "icon16.plasmo.00ac8b83.png",
+        "32": "icon32.plasmo.9ad0c5b6.png",
+        "48": "icon48.plasmo.cae3a6b3.png",
+        "64": "icon64.plasmo.e4b604fc.png",
+        "128": "icon128.plasmo.b89b7dfa.png"
+    },
+    "manifest_version": 3,
+    "action": {
+        "default_icon": {
+            "16": "icon16.plasmo.00ac8b83.png",
+            "32": "icon32.plasmo.9ad0c5b6.png",
+            "48": "icon48.plasmo.cae3a6b3.png",
+            "64": "icon64.plasmo.e4b604fc.png",
+            "128": "icon128.plasmo.b89b7dfa.png"
+        }
+    },
+    "version": "2.4.1",
+    "author": "kongkongye",
+    "name": "__MSG_appName__",
+    "description": "__MSG_appDescription__",
+    "background": {
+        "service_worker": "static/background/index.js"
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
+    "permissions": [
+        "storage",
+        "scripting",
+        "sidePanel",
+        "tabs",
+        "activeTab"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "MainCS.277dcde3.js"
+            ],
+            "css": []
+        },
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "IFrameCS.26275720.js"
+            ],
+            "all_frames": true,
+            "css": []
+        },
+        {
+            "matches": [
+                "http://localhost:5173/*",
+                "https://*.vcaptions.com/*"
+            ],
+            "js": [
+                "WebappCS.8b5d7cd6.js"
+            ],
+            "run_at": "document_start",
+            "css": []
+        },
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "Main.00175a8f.js"
+            ],
+            "css": []
+        },
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "SubtitleBar.f2dae354.js"
+            ],
+            "all_frames": false,
+            "css": []
+        }
+    ],
+    "default_locale": "en",
+    "host_permissions": [
+        "https://*/*",
+        "http://*/*"
+    ],
+    "commands": {
+        "copy-subtitles": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+C",
+                "mac": "Command+Shift+C"
+            },
+            "description": "__MSG_commandCopySubtitles__"
+        },
+        "download-subtitles": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+D",
+                "mac": "Command+Shift+D"
+            },
+            "description": "__MSG_commandDownloadSubtitles__"
+        }
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "*.css"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "options_page": "options.html"
+}

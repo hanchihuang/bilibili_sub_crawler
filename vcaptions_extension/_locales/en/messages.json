@@ -1,0 +1,18 @@
+{
+  "appName": {
+    "message": "vCaptions – Video Caption List",
+    "description": "Extension name"
+  },
+  "appDescription": {
+    "message": "Add smart captions lists to any website video. Supports YouTube and Bilibili with translation, chapters and AI summaries.",
+    "description": "Extension description"
+  },
+  "commandCopySubtitles": {
+    "message": "Copy subtitles with current download format",
+    "description": "Command description"
+  },
+  "commandDownloadSubtitles": {
+    "message": "Download subtitles with current download format",
+    "description": "Command description"
+  }
+}

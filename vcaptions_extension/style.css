@@ -1,0 +1,70 @@
+/* :host {
+  all: initial;
+} */
+
+:host {
+  color: initial;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  direction: ltr;
+  text-align: left;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* :host {
+  font-size: 16px;
+} */
+
+#vcaptions-subtitle {
+  font-size: 16px;
+  text-align: left;
+}
+
+.desc {
+  @apply text-base-content/80;
+}
+
+.desc-lighter {
+  @apply text-base-content/60;
+}
+
+.flex-center {
+  @apply flex items-center;
+}
+
+/* 强制隐藏滚动条 */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* 快捷键提示动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}

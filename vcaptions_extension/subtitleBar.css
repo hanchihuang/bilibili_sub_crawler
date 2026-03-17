@@ -1,0 +1,17 @@
+:host {
+  color: initial;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  direction: ltr;
+  text-align: left;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+#vcaptions-subtitle {
+  font-size: 16px;
+  text-align: left;
+}

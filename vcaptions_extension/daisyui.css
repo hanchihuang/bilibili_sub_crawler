@@ -1,0 +1,76 @@
+#vcaptions-subtitle {
+    color-scheme: light;
+    --pf: 196 100% 38%;
+    --sf: 280 65% 45%;
+    --af: 160 60% 45%;
+    --nf: 200 10% 25%;
+    --in: 196 93% 60%;
+    --su: 158 64% 52%;
+    --wa: 43 96% 56%;
+    --er: 0 91% 71%;
+    --inc: 196 100% 12%;
+    --suc: 158 100% 10%;
+    --wac: 43 100% 11%;
+    --erc: 0 100% 14%;
+    --rounded-box: 16px;
+    --rounded-btn: 2.4px;
+    --rounded-badge: 30.4px;
+    --animation-btn: 0.25s;
+    --animation-input: .2s;
+    --btn-text-case: normal-case;
+    --btn-focus-scale: 0.95;
+    --border-btn: 1px;
+    --tab-border: 1px;
+    --tab-radius: 8px;
+    --p: 196 100% 46%;
+    --pc: 0 0% 100%;
+    --s: 280 65% 55%;
+    --sc: 0 0% 100%;
+    --a: 160 60% 52%;
+    --ac: 0 0% 100%;
+    --n: 200 10% 30%;
+    --nc: 0 0% 100%;
+    --b1: 0 0% 100%;
+    --b2: 0 0% 95%;
+    --b3: 200 10% 92%;
+    --bc: 200 15% 20%
+}
+
+/* Dark theme variables - 当需要时可以通过类名切换 */
+#vcaptions-subtitle.dark {
+    color-scheme: dark;
+    --pf: 196 100% 38%;
+    --sf: 280 60% 42%;
+    --af: 160 55% 38%;
+    --in: 196 93% 60%;
+    --su: 158 64% 52%;
+    --wa: 43 96% 56%;
+    --er: 0 91% 71%;
+    --inc: 196 100% 12%;
+    --suc: 158 100% 10%;
+    --wac: 43 100% 11%;
+    --erc: 0 100% 14%;
+    --rounded-box: 16px;
+    --rounded-btn: 2.4px;
+    --rounded-badge: 30.4px;
+    --animation-btn: 0.25s;
+    --animation-input: .2s;
+    --btn-text-case: normal-case;
+    --btn-focus-scale: 0.95;
+    --border-btn: 1px;
+    --tab-border: 1px;
+    --tab-radius: 8px;
+    --p: 196 100% 46%;
+    --pc: 0 0% 100%;
+    --s: 280 60% 52%;
+    --sc: 0 0% 100%;
+    --a: 160 55% 48%;
+    --ac: 0 0% 100%;
+    --n: 210 10% 10%;
+    --nf: 210 12% 8%;
+    --nc: 210 6% 70%;
+    --b1: 210 5.4% 14.5%;
+    --b2: 210 6% 12%;
+    --b3: 210 7% 10%;
+    --bc: 210 6% 70%
+}
