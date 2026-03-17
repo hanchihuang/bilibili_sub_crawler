@@ -11,12 +11,25 @@ import time
 import pyperclip
 import os
 import sys
+from urllib.parse import urlparse
 
 SUBTITLE_READY_WAIT_SECONDS = 2
 CLICK_WAIT_SECONDS = 20
 COPY_RETRY_ATTEMPTS = 6
 VIDEO_COPY_MAX_ATTEMPTS = 3
 CLIPBOARD_POLL_TIMEOUT_SECONDS = 3.0
+COMMON_PERMISSION_NAMES = [
+    "clipboardReadWrite",
+    "clipboardSanitizedWrite",
+    "notifications",
+    "geolocation",
+]
+COMMON_PERMISSION_DESCRIPTORS = [
+    {"name": "clipboard-read"},
+    {"name": "clipboard-write"},
+    {"name": "notifications"},
+    {"name": "geolocation"},
+]
 
 
 def _click_visible_text(driver, text, exact=True):
@@ -77,6 +90,35 @@ target.click();
 return true;
 """
     return bool(driver.execute_script(script, text, exact))
+
+
+def _grant_browser_permissions(driver, page_url):
+    """提前允许常见权限，尽量避免 Chrome 左上角权限弹窗打断复制。"""
+    parsed = urlparse(page_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if not parsed.scheme or not parsed.netloc:
+        return
+
+    try:
+        driver.execute_cdp_cmd(
+            "Browser.grantPermissions",
+            {"origin": origin, "permissions": COMMON_PERMISSION_NAMES},
+        )
+    except Exception:
+        pass
+
+    for descriptor in COMMON_PERMISSION_DESCRIPTORS:
+        try:
+            driver.execute_cdp_cmd(
+                "Browser.setPermission",
+                {
+                    "origin": origin,
+                    "permission": descriptor,
+                    "setting": "granted",
+                },
+            )
+        except Exception:
+            continue
 
 
 def _scroll_right_panel(driver):
@@ -366,33 +408,89 @@ def _click_copy_button(driver, element):
     return None
 
 
-def _read_clipboard_text():
+def _read_system_clipboard_text():
     try:
         return pyperclip.paste() or ""
     except Exception:
         return ""
 
 
-def _wait_for_clipboard_text(previous_text="", min_length=10, timeout=CLIPBOARD_POLL_TIMEOUT_SECONDS):
-    previous = (previous_text or "").strip()
+def _read_browser_clipboard_text(driver):
+    script = """
+const done = arguments[arguments.length - 1];
+if (!navigator.clipboard || !navigator.clipboard.readText) {
+  done({ok: false, text: "", error: "clipboard api unavailable"});
+  return;
+}
+
+navigator.clipboard.readText()
+  .then(text => done({ok: true, text: text || ""}))
+  .catch(err => done({ok: false, text: "", error: String(err)}));
+"""
+    try:
+        result = driver.execute_async_script(script)
+        if result and result.get("ok"):
+            return result.get("text", "") or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _clear_clipboards(driver):
+    try:
+        pyperclip.copy("")
+    except Exception:
+        pass
+
+    script = """
+const done = arguments[arguments.length - 1];
+if (!navigator.clipboard || !navigator.clipboard.writeText) {
+  done(false);
+  return;
+}
+
+navigator.clipboard.writeText("")
+  .then(() => done(true))
+  .catch(() => done(false));
+"""
+    try:
+        driver.execute_async_script(script)
+    except Exception:
+        pass
+
+
+def _pick_valid_clipboard_text(driver, min_length=10):
+    candidates = [
+        ("system", _read_system_clipboard_text()),
+        ("browser", _read_browser_clipboard_text(driver)),
+    ]
+    valid = []
+    for source, text in candidates:
+        stripped = (text or "").strip()
+        if len(stripped) > min_length:
+            valid.append((len(stripped), source, text))
+
+    if not valid:
+        return None, None
+
+    _, source, text = max(valid, key=lambda item: item[0])
+    return text, source
+
+
+def _wait_for_clipboard_text(driver, min_length=10, timeout=CLIPBOARD_POLL_TIMEOUT_SECONDS):
     deadline = time.time() + timeout
 
     while time.time() < deadline:
-        current = _read_clipboard_text()
-        stripped = current.strip()
-        if len(stripped) > min_length and stripped != previous:
-            return current
+        text, source = _pick_valid_clipboard_text(driver, min_length=min_length)
+        if text:
+            return text, source
         time.sleep(0.2)
 
-    current = _read_clipboard_text()
-    stripped = current.strip()
-    if len(stripped) > min_length and stripped != previous:
-        return current
-    return None
+    return _pick_valid_clipboard_text(driver, min_length=min_length)
 
 
 def _copy_subtitle_via_download_panel(driver):
-    pyperclip.copy("")
+    _clear_clipboards(driver)
     time.sleep(0.5)
 
     def click_download(_driver):
@@ -411,7 +509,7 @@ def _copy_subtitle_via_download_panel(driver):
             if not copy_button:
                 break
 
-            pyperclip.copy("")
+            _clear_clipboards(driver)
             time.sleep(0.2)
 
             strategy = _click_copy_button(driver, copy_button)
@@ -419,11 +517,12 @@ def _copy_subtitle_via_download_panel(driver):
                 continue
 
             print(f"已点击下载中心“复制”按钮，第 {click_attempt + 1} 次尝试，方式: {strategy}")
-            subtitle = _wait_for_clipboard_text("")
+            subtitle, source = _wait_for_clipboard_text(driver)
             if subtitle:
+                print(f"已从{source}剪贴板读取到字幕内容")
                 return subtitle
 
-            print("本次复制后剪贴板仍为空，继续重试同一个“复制”按钮...")
+            print("页面可能弹出了左上角权限框，或页面显示成功但系统未真正复制；继续自动重试...")
             time.sleep(0.6)
 
         if scroll_attempt < 3:
@@ -446,6 +545,10 @@ def install_extension_and_get_subtitle(bvid="BV1GNfSBgE7b", wait_time=15):
     options.add_argument('--no-default-browser-check')
     options.add_argument('--user-data-dir=/home/user/.config/google-chrome/Default')
     options.add_argument(f'--load-extension={extension_path}')
+    options.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.notifications": 1,
+        "profile.default_content_setting_values.geolocation": 1,
+    })
     
     print(f"扩展路径: {extension_path}")
     print(f"视频 BV ID: {bvid}")
@@ -459,6 +562,7 @@ def install_extension_and_get_subtitle(bvid="BV1GNfSBgE7b", wait_time=15):
         video_url = f"https://www.bilibili.com/video/{bvid}"
         print(f"打开视频: {video_url}")
         driver.get(video_url)
+        _grant_browser_permissions(driver, video_url)
         
         # 等待页面加载
         print("等待页面加载...")
@@ -478,6 +582,7 @@ def install_extension_and_get_subtitle(bvid="BV1GNfSBgE7b", wait_time=15):
             if attempt > 0:
                 print(f"\n重新打开视频并重试复制 ({attempt + 1}/{VIDEO_COPY_MAX_ATTEMPTS})...")
                 driver.get(video_url)
+                _grant_browser_permissions(driver, video_url)
                 time.sleep(8)
                 print(f"字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
                 time.sleep(SUBTITLE_READY_WAIT_SECONDS)
