@@ -13,10 +13,9 @@ import os
 import sys
 from urllib.parse import urlparse
 
-SUBTITLE_READY_WAIT_SECONDS = 2
+SUBTITLE_READY_WAIT_SECONDS = 1
 CLICK_WAIT_SECONDS = 20
 COPY_RETRY_ATTEMPTS = 6
-VIDEO_COPY_MAX_ATTEMPTS = 3
 CLIPBOARD_POLL_TIMEOUT_SECONDS = 3.0
 COMMON_PERMISSION_NAMES = [
     "clipboardReadWrite",
@@ -577,20 +576,9 @@ def install_extension_and_get_subtitle(bvid="BV1GNfSBgE7b", wait_time=15):
         print(f"字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
         time.sleep(SUBTITLE_READY_WAIT_SECONDS)
 
-        subtitle = None
-        for attempt in range(VIDEO_COPY_MAX_ATTEMPTS):
-            if attempt > 0:
-                print(f"\n重新打开视频并重试复制 ({attempt + 1}/{VIDEO_COPY_MAX_ATTEMPTS})...")
-                driver.get(video_url)
-                _grant_browser_permissions(driver, video_url)
-                time.sleep(8)
-                print(f"字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
-                time.sleep(SUBTITLE_READY_WAIT_SECONDS)
-
-            subtitle = _copy_subtitle_via_download_panel(driver)
-            if subtitle and len(subtitle) > 10:
-                break
-            print("本轮复制后剪贴板为空")
+        subtitle = _copy_subtitle_via_download_panel(driver)
+        if not (subtitle and len(subtitle) > 10):
+            print("本轮复制后剪贴板为空，直接放弃当前视频")
 
         if subtitle:
             print(f"\n字幕长度: {len(subtitle)} 字符")

@@ -28,10 +28,9 @@ os.makedirs(DEFAULT_SAVE_DIR, exist_ok=True)
 
 # vCaptions 扩展路径
 EXTENSION_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vcaptions_extension")
-SUBTITLE_READY_WAIT_SECONDS = 2
+SUBTITLE_READY_WAIT_SECONDS = 1
 CLICK_WAIT_SECONDS = 20
 COPY_RETRY_ATTEMPTS = 6
-VIDEO_COPY_MAX_ATTEMPTS = 3
 CLIPBOARD_POLL_TIMEOUT_SECONDS = 3.0
 COMMON_PERMISSION_NAMES = [
     "clipboardReadWrite",
@@ -568,27 +567,22 @@ def create_driver():
 def get_subtitle_with_vcaptions(driver, bvid):
     """使用 vCaptions 获取单个视频的字幕"""
     video_url = f"https://www.bilibili.com/video/{bvid}"
-    
-    for attempt in range(VIDEO_COPY_MAX_ATTEMPTS):
-        print(f"  打开视频: {video_url} (尝试 {attempt + 1}/{VIDEO_COPY_MAX_ATTEMPTS})")
-        driver.get(video_url)
-        _grant_browser_permissions(driver, video_url)
-        time.sleep(6)  # 等待页面加载
-        print(f"    字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
-        time.sleep(SUBTITLE_READY_WAIT_SECONDS)
 
-        try:
-            subtitle = _copy_subtitle_via_download_panel(driver)
-            if subtitle and len(subtitle) > 10:
-                print(f"    字幕长度: {len(subtitle)} 字符")
-                return subtitle
-            print("    下载中心复制后剪贴板为空")
-        except Exception as e:
-            print(f"    通过下载中心复制字幕失败: {e}")
+    print(f"  打开视频: {video_url}")
+    driver.get(video_url)
+    _grant_browser_permissions(driver, video_url)
+    time.sleep(6)  # 等待页面加载
+    print(f"    字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
+    time.sleep(SUBTITLE_READY_WAIT_SECONDS)
 
-        if attempt < VIDEO_COPY_MAX_ATTEMPTS - 1:
-            print("    当前视频复制失败，重新打开本视频后自动重试...")
-            time.sleep(2)
+    try:
+        subtitle = _copy_subtitle_via_download_panel(driver)
+        if subtitle and len(subtitle) > 10:
+            print(f"    字幕长度: {len(subtitle)} 字符")
+            return subtitle
+        print("    下载中心复制后剪贴板为空，直接放弃当前视频")
+    except Exception as e:
+        print(f"    通过下载中心复制字幕失败，直接放弃当前视频: {e}")
     
     return None
 
