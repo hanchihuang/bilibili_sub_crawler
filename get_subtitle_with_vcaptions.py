@@ -5,6 +5,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 import time
 import pyperclip
@@ -13,6 +14,9 @@ import sys
 
 SUBTITLE_READY_WAIT_SECONDS = 2
 CLICK_WAIT_SECONDS = 20
+COPY_RETRY_ATTEMPTS = 6
+VIDEO_COPY_MAX_ATTEMPTS = 3
+CLIPBOARD_POLL_TIMEOUT_SECONDS = 3.0
 
 
 def _click_visible_text(driver, text, exact=True):
@@ -180,8 +184,8 @@ return next;
     return driver.execute_script(script)
 
 
-def _click_copy_in_right_panel(driver):
-    """优先点击右侧下载黑框底部按钮行中、位于“下载”左侧的“复制”按钮。"""
+def _find_copy_button_in_right_panel(driver):
+    """定位右侧下载黑框底部按钮行中的“复制”按钮。"""
     script = r"""
 function walk(root, out) {
   const elements = root.querySelectorAll('*');
@@ -303,12 +307,88 @@ const target = copyButtons.sort((a, b) => {
   return score(br) - score(ar) || br.top - ar.top || br.left - ar.left;
 })[0];
 
-if (!target) return false;
+if (!target) return null;
 target.scrollIntoView({block: 'center', inline: 'center'});
-target.click();
+return target;
+"""
+    return driver.execute_script(script)
+
+
+def _dispatch_mouse_click(driver, element):
+    """向元素分发完整鼠标事件序列，尽量接近人工点击。"""
+    script = r"""
+const el = arguments[0];
+if (!el) return false;
+el.scrollIntoView({block: 'center', inline: 'center'});
+const rect = el.getBoundingClientRect();
+const clientX = rect.left + rect.width / 2;
+const clientY = rect.top + rect.height / 2;
+const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+for (const type of events) {
+  const EventCtor = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+  el.dispatchEvent(new EventCtor(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    buttons: 1,
+    clientX,
+    clientY,
+    view: window,
+  }));
+}
 return true;
 """
-    return bool(driver.execute_script(script))
+    return bool(driver.execute_script(script, element))
+
+
+def _click_copy_button(driver, element):
+    """对同一个复制按钮尝试多种点击方式，优先使用更像人工的点击。"""
+    strategies = [
+        ("actions", lambda: ActionChains(driver).move_to_element(element).pause(0.1).click(element).perform()),
+        ("selenium", lambda: element.click()),
+        ("mouse-events", lambda: _dispatch_mouse_click(driver, element)),
+        ("js-click", lambda: driver.execute_script("arguments[0].click(); return true;", element)),
+    ]
+
+    driver.execute_script("window.focus();")
+
+    for strategy_name, strategy in strategies:
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", element)
+            strategy()
+            return strategy_name
+        except Exception:
+            continue
+
+    return None
+
+
+def _read_clipboard_text():
+    try:
+        return pyperclip.paste() or ""
+    except Exception:
+        return ""
+
+
+def _wait_for_clipboard_text(previous_text="", min_length=10, timeout=CLIPBOARD_POLL_TIMEOUT_SECONDS):
+    previous = (previous_text or "").strip()
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        current = _read_clipboard_text()
+        stripped = current.strip()
+        if len(stripped) > min_length and stripped != previous:
+            return current
+        time.sleep(0.2)
+
+    current = _read_clipboard_text()
+    stripped = current.strip()
+    if len(stripped) > min_length and stripped != previous:
+        return current
+    return None
 
 
 def _copy_subtitle_via_download_panel(driver):
@@ -322,16 +402,34 @@ def _copy_subtitle_via_download_panel(driver):
     print("已点击右侧面板“下载”按钮")
     time.sleep(1.5)
 
-    for _ in range(4):
+    for scroll_attempt in range(4):
         _scroll_right_panel(driver)
         time.sleep(0.8)
-        if _click_copy_in_right_panel(driver):
-            print("已点击下载中心“复制”按钮")
-            time.sleep(2)
-            subtitle = pyperclip.paste()
-            if subtitle and len(subtitle.strip()) > 10:
+
+        for click_attempt in range(COPY_RETRY_ATTEMPTS):
+            copy_button = _find_copy_button_in_right_panel(driver)
+            if not copy_button:
+                break
+
+            pyperclip.copy("")
+            time.sleep(0.2)
+
+            strategy = _click_copy_button(driver, copy_button)
+            if not strategy:
+                continue
+
+            print(f"已点击下载中心“复制”按钮，第 {click_attempt + 1} 次尝试，方式: {strategy}")
+            subtitle = _wait_for_clipboard_text("")
+            if subtitle:
                 return subtitle
-        time.sleep(0.5)
+
+            print("本次复制后剪贴板仍为空，继续重试同一个“复制”按钮...")
+            time.sleep(0.6)
+
+        if scroll_attempt < 3:
+            WebDriverWait(driver, CLICK_WAIT_SECONDS, poll_frequency=0.5).until(click_download)
+            print("重新点击右侧面板“下载”按钮，准备继续重试")
+            time.sleep(1.0)
 
     return None
 
@@ -375,7 +473,20 @@ def install_extension_and_get_subtitle(bvid="BV1GNfSBgE7b", wait_time=15):
         print(f"字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
         time.sleep(SUBTITLE_READY_WAIT_SECONDS)
 
-        subtitle = _copy_subtitle_via_download_panel(driver)
+        subtitle = None
+        for attempt in range(VIDEO_COPY_MAX_ATTEMPTS):
+            if attempt > 0:
+                print(f"\n重新打开视频并重试复制 ({attempt + 1}/{VIDEO_COPY_MAX_ATTEMPTS})...")
+                driver.get(video_url)
+                time.sleep(8)
+                print(f"字幕显示后额外等待 {SUBTITLE_READY_WAIT_SECONDS} 秒...")
+                time.sleep(SUBTITLE_READY_WAIT_SECONDS)
+
+            subtitle = _copy_subtitle_via_download_panel(driver)
+            if subtitle and len(subtitle) > 10:
+                break
+            print("本轮复制后剪贴板为空")
+
         if subtitle:
             print(f"\n字幕长度: {len(subtitle)} 字符")
         
